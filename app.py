@@ -1,3 +1,4 @@
+from rag.embeddings import retrieve_runbook
 from pathlib import Path
 from datetime import datetime
 import pickle
@@ -271,6 +272,8 @@ if "last_ai_text" not in st.session_state:
     st.session_state.last_ai_text = ""
 if "last_runbook" not in st.session_state:
     st.session_state.last_runbook = ""
+if "last_rag_source" not in st.session_state:
+    st.session_state.last_rag_source = ""
 if "last_prediction" not in st.session_state:
     st.session_state.last_prediction = ""
 if "last_severity" not in st.session_state:
@@ -504,7 +507,12 @@ if st.button("🔍 Analyze Network"):
         st.error("Model file not found. Please train the model first and keep models/model.pkl in place.")
     else:
         prediction = str(model.predict([[cpu, latency, loss]])[0]).strip()
-        runbook = get_runbook(cpu, latency, loss)
+        query = f"CPU {cpu}, latency {latency}, packet loss {loss}, prediction {prediction}"
+
+        rag_result = retrieve_runbook(query)
+
+        runbook = rag_result["content"]
+        rag_source = rag_result["source"]
         ai_text = get_phi3_response(cpu, latency, loss, prediction, runbook)
 
         risk_score = calculate_risk_score(cpu, latency, loss)
@@ -528,6 +536,7 @@ if st.button("🔍 Analyze Network"):
         st.session_state.last_report = report_text
         st.session_state.last_ai_text = ai_text
         st.session_state.last_runbook = runbook
+        st.session_state.last_rag_source = rag_source
         st.session_state.last_prediction = prediction
         st.session_state.last_severity = severity
         st.session_state.last_risk = risk_score
@@ -557,6 +566,7 @@ if st.session_state.last_analysis is not None:
     st.info(st.session_state.last_ai_text)
 
     with st.expander("Runbook Reference", expanded=False):
+        st.caption(f"Retrieved from: {st.session_state.last_rag_source}")
         st.code(st.session_state.last_runbook, language="text")
 
     st.subheader("🛠 Recommended Actions")
