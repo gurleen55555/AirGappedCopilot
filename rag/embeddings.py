@@ -22,17 +22,35 @@ def retrieve_runbook(query: str):
     scores = cosine_similarity(query_embedding, document_embeddings)[0]
     best_index = scores.argmax()
 
-    return {
-        "source": sources[best_index],
-        "content": documents[best_index],
-        "score": float(scores[best_index]),
-    }
+    top_indices = scores.argsort()[-2:][::-1]
+
+    results = []
+
+    for index in top_indices:
+        if scores[index] < 0.40:
+            continue
+        results.append(
+            {
+                "source": sources[index],
+                "content": documents[index],
+                "score": float(scores[index]),
+            }
+        )
+        if not results:
+            return [
+                {
+                "source": "none",
+                "content": "No sufficiently relevant runbook was found.",
+                "score": 0.0,
+            }
+        ]
+        return results
 
 
 if __name__ == "__main__":
-    result = retrieve_runbook("CPU usage is very high")
+    results = retrieve_runbook("CPU usage is very high")
 
-    print("Best matching file:", result["source"])
-    print("Similarity score:", result["score"])
-    print("\nRetrieved content:")
-    print(result["content"])
+    for result in results:
+        print("\nSource:", result["source"])
+        print("Score:", result["score"])
+        print(result["content"])

@@ -194,6 +194,10 @@ ML Prediction:
 {prediction}
 
 Reference Runbook:
+Use only the provided network metrics, prediction, and reference runbook.
+Do not invent causes, actions, trends, or historical information.
+If the runbook says the network is normal, do not report an anomaly.
+If no relevant runbook is found, say "Not enough information."
 {runbook}
 
 Return ONLY this format:
@@ -202,7 +206,13 @@ Issue:
 Cause:
 Action:
 
-Keep it under 45 words.
+Summarize the runbook in simple language.
+Use exactly 3 short lines:
+Issue:
+Cause:
+Action:
+Maximum 30 words total.
+Do not repeat the full runbook.
 """.strip()
 
     try:
@@ -507,12 +517,28 @@ if st.button("🔍 Analyze Network"):
         st.error("Model file not found. Please train the model first and keep models/model.pkl in place.")
     else:
         prediction = str(model.predict([[cpu, latency, loss]])[0]).strip()
-        query = f"CPU {cpu}, latency {latency}, packet loss {loss}, prediction {prediction}"
+        if cpu > 85 or latency > 150 or loss > 5:
+            if prediction.lower() == "normal":
+                prediction = "risk"
+        issues = []
 
-        rag_result = retrieve_runbook(query)
+        if cpu > 85:
+            issues.append("High CPU Utilization")
 
-        runbook = rag_result["content"]
-        rag_source = rag_result["source"]
+        if latency > 150:
+            issues.append("High Network Latency")
+
+        if loss > 5:
+            issues.append("Packet Loss")
+
+        if issues:
+            query = ". ".join(issues)
+        else:
+            query = "Normal Network State with safe CPU latency and packet loss"
+        rag_results = retrieve_runbook(query)
+
+        runbook = "\n\n".join(result["content"] for result in rag_results)
+        rag_source = ", ".join(result["source"] for result in rag_results)
         ai_text = get_phi3_response(cpu, latency, loss, prediction, runbook)
 
         risk_score = calculate_risk_score(cpu, latency, loss)

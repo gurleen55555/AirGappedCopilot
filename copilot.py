@@ -21,12 +21,25 @@ input_data = pd.DataFrame(
 )
 
 prediction = model.predict(input_data)[0]
-query = f"CPU {cpu}, latency {latency}, packet loss {loss}, prediction {prediction}"
+issues = []
 
-rag_result = retrieve_runbook(query)
+if cpu > 85:
+    issues.append("High CPU Utilization")
 
-runbook = rag_result["content"]
-source = rag_result["source"]
+if latency > 150:
+    issues.append("High Network Latency")
+
+if loss > 5:
+    issues.append("Packet Loss")
+
+if issues:
+    query = ". ".join(issues)
+else:
+    query = "Normal Network State with safe CPU latency and packet loss"
+rag_results = retrieve_runbook(query)
+
+runbook = "\n\n".join(result["content"] for result in rag_results)
+source = ", ".join(result["source"] for result in rag_results)
 
 # Prompt for Phi-3
 prompt = f"""
@@ -39,9 +52,10 @@ Loss={loss}
 Predicted Status={prediction}
 
 Reference Runbook:
-Use only the provided network metrics, prediction, and runbook.
-Do not mention historical trends, past weeks, seasonal load, or any information not given here.
-If information is missing, say "Not enough information."
+Use only the provided network metrics, prediction, and reference runbook.
+Do not invent causes, actions, trends, or historical information.
+If the runbook says the network is normal, do not report an anomaly.
+If no relevant runbook is found, say "Not enough information."
 {runbook}
 
 Return answer in format:
@@ -50,7 +64,13 @@ Issue:
 Cause:
 Action:
 
-Maximum 40 words.
+Summarize the runbook in simple language.
+Use exactly 3 short lines:
+Issue:
+Cause:
+Action:
+Maximum 30 words total.
+Do not repeat the full runbook.
 """
 
 response = ollama.chat(
