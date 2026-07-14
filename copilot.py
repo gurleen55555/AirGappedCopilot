@@ -1,3 +1,4 @@
+from rag.embeddings import retrieve_runbook
 import pickle
 import ollama
 from knowledge import get_runbook
@@ -20,7 +21,12 @@ input_data = pd.DataFrame(
 )
 
 prediction = model.predict(input_data)[0]
-runbook = get_runbook(cpu, latency , loss)
+query = f"CPU {cpu}, latency {latency}, packet loss {loss}, prediction {prediction}"
+
+rag_result = retrieve_runbook(query)
+
+runbook = rag_result["content"]
+source = rag_result["source"]
 
 # Prompt for Phi-3
 prompt = f"""
@@ -53,5 +59,6 @@ response = ollama.chat(
 )
 
 print("Prediction:", prediction)
+print("Retrieved source:", source)
 print()
 print(response["message"]["content"])
