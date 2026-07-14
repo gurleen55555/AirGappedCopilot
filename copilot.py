@@ -12,7 +12,14 @@ latency = 15
 loss = 0
 
 # Prediction
-prediction = model.predict([[cpu, latency, loss]])[0]
+import pandas as pd
+
+input_data = pd.DataFrame(
+    [[cpu, latency, loss]],
+    columns=["CPU", "Latency", "PacketLoss"]
+)
+
+prediction = model.predict(input_data)[0]
 runbook = get_runbook(cpu, latency , loss)
 
 # Prompt for Phi-3
@@ -26,7 +33,9 @@ Loss={loss}
 Predicted Status={prediction}
 
 Reference Runbook:
-
+Use only the provided network metrics, prediction, and runbook.
+Do not mention historical trends, past weeks, seasonal load, or any information not given here.
+If information is missing, say "Not enough information."
 {runbook}
 
 Return answer in format:
