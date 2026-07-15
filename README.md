@@ -28,7 +28,7 @@ AstraGrid AI addresses this challenge by combining:
 * 🤖 Local AI Assistant (Phi-3 via Ollama)
 * 📊 Real-Time Network Telemetry Dashboard
 * ⚠️ Anomaly Detection
-* 📈 Failure Prediction using Random Forest
+* 📈 Failure Prediction using LSTM
 * 📁 Network Log Upload & Analysis
 * 📝 Incident Report Generation
 * 📚 Incident History Tracking
@@ -75,8 +75,9 @@ Network Logs / Telemetry
 
 ### Machine Learning
 
+* TensorFlow / Keras
+* LSTM
 * Scikit-Learn
-* Random Forest Classifier
 * Pandas
 * NumPy
 
@@ -104,12 +105,16 @@ AirGappedCopilot/
 │   ├── network_data.csv
 │   └── incidents.csv
 │
-├── ml/
-│   ├── generate_dataset.py
-│   └── train_model.py
+ml/
+├── generate_time_series.py
+├── train_model.py
+├── predict.py
+└── train_random_forest.py
 │
-├── models/
-│   └── model.pkl
+models/
+├── lstm_model.keras
+├── scaler.pkl
+└── label_encoder.pkl
 │
 ├── tests/
 │   └── phi_test.py
@@ -136,7 +141,7 @@ venv\Scripts\activate
 ### 3. Install Dependencies
 
 ```bash
-pip install pandas numpy scikit-learn streamlit joblib
+pip install -r requirements.txt
 ```
 
 ### 4. Install Ollama
@@ -157,10 +162,10 @@ ollama list
 
 ## 📊 Dataset Generation
 
-Generate a synthetic dataset of 500 network telemetry records:
+Generate a synthetic sequential dataset of 2,000 network telemetry records:
 
 ```bash
-python ml/generate_dataset.py
+python ml/generate_time_series.py
 ```
 
 ---
@@ -176,9 +181,13 @@ python ml/train_model.py
 This creates:
 
 ```text
-models/model.pkl
-```
+This creates:
 
+models/lstm_model.keras
+models/scaler.pkl
+models/label_encoder.pkl
+```
+The LSTM uses the latest 10 telemetry readings to predict normal, risk, or failure.
 ---
 
 ## ▶️ Run Application
@@ -268,7 +277,7 @@ FAILURE
 ### Team Bhaskar
 
 ---
-
+Prototype test accuracy: 85.93% on synthetic sequential telemetry data.
 ## 📄 License
 
 This project is developed for hackathon and educational purposes.
