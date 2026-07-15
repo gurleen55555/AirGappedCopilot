@@ -2,6 +2,8 @@ from rag.embeddings import retrieve_runbook
 from pathlib import Path
 from datetime import datetime
 import pickle
+import numpy as np
+from tensorflow.keras.models import load_model as load_keras_model
 import re
 
 import pandas as pd
@@ -16,7 +18,11 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 MODELS_DIR = BASE_DIR / "models"
 INCIDENTS_FILE = DATA_DIR / "incidents.csv"
-MODEL_FILE = MODELS_DIR / "model.pkl"
+LSTM_MODEL_FILE = MODELS_DIR / "lstm_model.keras"
+SCALER_FILE = MODELS_DIR / "scaler.pkl"
+LABEL_ENCODER_FILE = MODELS_DIR / "label_encoder.pkl"
+
+SEQUENCE_LENGTH = 10
 
 HIGH_CPU_RUNBOOK = """Issue: High CPU Utilization
 
@@ -155,12 +161,59 @@ def get_runbook(cpu, latency, loss):
 
 
 @st.cache_resource
-def load_model():
-    if not MODEL_FILE.exists():
-        return None
-    with open(MODEL_FILE, "rb") as f:
-        return pickle.load(f)
+def load_lstm_assets():
+    required_files = [
+        LSTM_MODEL_FILE,
+        SCALER_FILE,
+        LABEL_ENCODER_FILE,
+    ]
 
+    if not all(file.exists() for file in required_files):
+        return None, None, None
+
+    model = load_keras_model(LSTM_MODEL_FILE)
+
+    with open(SCALER_FILE, "rb") as file:
+        scaler = pickle.load(file)
+
+    with open(LABEL_ENCODER_FILE, "rb") as file:
+        label_encoder = pickle.load(file)
+
+    return model, scaler, label_encoder
+
+def predict_with_lstm(cpu, latency, loss, model, scaler, label_encoder):
+    history = load_history()
+
+    recent_rows = history[["CPU", "Latency", "Loss"]].copy()
+
+    current_row = pd.DataFrame(
+        [[cpu, latency, loss]],
+        columns=["CPU", "Latency", "Loss"],
+    )
+
+    recent_rows = pd.concat([recent_rows, current_row], ignore_index=True)
+    recent_rows = recent_rows.tail(SEQUENCE_LENGTH)
+
+    if len(recent_rows) < SEQUENCE_LENGTH:
+        missing_rows = SEQUENCE_LENGTH - len(recent_rows)
+
+        padding = pd.DataFrame(
+            [[cpu, latency, loss]] * missing_rows,
+            columns=["CPU", "Latency", "Loss"],
+        )
+
+        recent_rows = pd.concat([padding, recent_rows], ignore_index=True)
+
+    scaled_readings = scaler.transform(recent_rows.values)
+    input_sequence = np.expand_dims(scaled_readings, axis=0)
+
+    probabilities = model.predict(input_sequence, verbose=0)[0]
+    predicted_index = np.argmax(probabilities)
+
+    prediction = label_encoder.inverse_transform([predicted_index])[0]
+    confidence = float(probabilities[predicted_index])
+
+    return prediction, confidence
 
 def heuristic_analysis(cpu, latency, loss, prediction):
     prediction = str(prediction).lower()
@@ -222,6 +275,8 @@ Do not repeat the full runbook.
             options={"temperature": 0.2},
         )
         text = response["message"]["content"].strip()
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        text = "\n".join(lines[:3])
         if text:
             return text
     except Exception:
@@ -266,7 +321,7 @@ AI Copilot Output:
 # =========================
 
 ensure_files()
-model = load_model()
+model, scaler, label_encoder = load_lstm_assets()
 
 if "cpu" not in st.session_state:
     st.session_state.cpu = 50
@@ -286,6 +341,8 @@ if "last_rag_source" not in st.session_state:
     st.session_state.last_rag_source = ""
 if "last_prediction" not in st.session_state:
     st.session_state.last_prediction = ""
+if "last_confidence" not in st.session_state:
+    st.session_state.last_confidence = 0.0
 if "last_severity" not in st.session_state:
     st.session_state.last_severity = ""
 if "last_risk" not in st.session_state:
@@ -513,10 +570,22 @@ else:
 # =========================
 
 if st.button("🔍 Analyze Network"):
-    if model is None:
-        st.error("Model file not found. Please train the model first and keep models/model.pkl in place.")
+    if model is None or scaler is None or label_encoder is None:
+        st.error(
+            "LSTM model files not found. Please train the model first and keep "
+            "lstm_model.keras, scaler.pkl, and label_encoder.pkl inside models."
+        )
     else:
-        prediction = str(model.predict([[cpu, latency, loss]])[0]).strip()
+        prediction, confidence = predict_with_lstm(
+            cpu,
+            latency,
+            loss,
+            model,
+            scaler,
+            label_encoder,
+        )
+
+        prediction = str(prediction).strip()
         if cpu > 85 or latency > 150 or loss > 5:
             if prediction.lower() == "normal":
                 prediction = "risk"
@@ -564,6 +633,7 @@ if st.button("🔍 Analyze Network"):
         st.session_state.last_runbook = runbook
         st.session_state.last_rag_source = rag_source
         st.session_state.last_prediction = prediction
+        st.session_state.last_confidence = confidence
         st.session_state.last_severity = severity
         st.session_state.last_risk = risk_score
         st.session_state.last_source = source_label
@@ -587,6 +657,7 @@ if st.session_state.last_analysis is not None:
 
     st.subheader("ML Prediction")
     st.write(str(st.session_state.last_prediction).upper())
+    st.write(f"Confidence: {st.session_state.last_confidence:.2%}")
 
     st.subheader("🤖 AI Copilot Analysis")
     st.info(st.session_state.last_ai_text)
