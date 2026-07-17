@@ -204,6 +204,31 @@ http://localhost:8501
 
 ---
 
+## 📊 LSTM Model Evaluation
+
+The LSTM model was evaluated on the final 20% of the sequential telemetry dataset.
+
+### Results
+
+- Test Accuracy: **85.93%**
+- Macro F1-score: **0.85**
+- Weighted F1-score: **0.86**
+
+### Class-wise Performance
+
+| Class | Precision | Recall | F1-score |
+|---|---:|---:|---:|
+| Failure | 0.81 | 0.97 | 0.88 |
+| Normal | 0.96 | 0.86 | 0.91 |
+| Risk | 0.77 | 0.78 | 0.77 |
+
+The model performs especially well in detecting failure conditions, with a recall of **0.97**.
+
+The evaluation script is available at:
+
+```text
+ml/evaluate_model.py
+
 ## 🧪 Sample Test Cases
 
 ### Normal Network
