@@ -6,3 +6,4 @@ joblib
 ollama
 sentence-transformers
 tensorflow
+matplotlib
