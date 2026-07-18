@@ -6,6 +6,9 @@ import pandas as pd
 from sklearn.metrics import (
     ConfusionMatrixDisplay,
     accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
     classification_report,
     confusion_matrix,
 )
@@ -57,7 +60,31 @@ y_pred = label_encoder.inverse_transform(predicted_indices)
 # Print evaluation results
 accuracy = accuracy_score(y_test, y_pred)
 
-print(f"Test Accuracy: {accuracy:.2%}")
+precision = precision_score(
+    y_test,
+    y_pred,
+    average="weighted",
+    zero_division=0,
+)
+
+recall = recall_score(
+    y_test,
+    y_pred,
+    average="weighted",
+    zero_division=0,
+)
+
+f1 = f1_score(
+    y_test,
+    y_pred,
+    average="weighted",
+    zero_division=0,
+)
+
+print(f"Accuracy: {accuracy:.2%}")
+print(f"Precision: {precision:.2%}")
+print(f"Recall: {recall:.2%}")
+print(f"F1-Score: {f1:.2%}")
 print("\nClassification Report:")
 print(
     classification_report(
